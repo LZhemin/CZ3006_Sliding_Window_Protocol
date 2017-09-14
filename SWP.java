@@ -11,6 +11,9 @@
  *          Singapore 639798                                     *
  *===============================================================*/
 
+import java.util.Timer; /*importing library function*/
+import java.util.TimerTask;
+
 public class SWP {
 
     /*========================================================================*
@@ -82,15 +85,16 @@ public class SWP {
      *==========================================================================*/
 
     private boolean no_nak = true; /*no nak has been sent yet*/
-
+    private Timer[] sender_timer = new Timer[NR_BUFS];
+    private Timer receiver_timer;
 
     /**
      * Increment to the next number within the possible sequence number
      * @param num   number to increment from
      */
     public int increment(int num) {
-           return (num + 1) % (MAX_SEQ + 1);
-       }
+        return (num + 1) % (MAX_SEQ + 1);
+    }
 
 
     /**
@@ -112,18 +116,18 @@ public class SWP {
      * @param frame_expected sequence/frame number expected
      * @param buffer         buffer Packet(s)
      */
-     public void send_frame(int fk, int frame_nr, int frame_expected, Packet buffer[]){
-         PFrame s = new PFrame();   /* scratch variable*/
-         s.kind = fk;               /* kind == data, ack, or nak */
+    public void send_frame(int fk, int frame_nr, int frame_expected, Packet buffer[]) {
+        PFrame s = new PFrame(); /* scratch variable*/
+        s.kind = fk; /* kind == data, ack, or nak */
 
-         if (fk == PFrame.DATA) s.info = buffer[frame_nr % NR_BUFS];   /* if frame kind is data*/
-         s.seq = frame_nr;        /* only meaningful for data frames*/
-         s.ack = (frame_expected + MAX_SEQ) % (MAX_SEQ + 1);
-         if (fk == PFrame.NAK) no_nak = false;   /*one nak per frame, please */
-         to_physical_layer(s);           /*transmit the frame*/
-         if(fk == PFrame.DATA) start_timer(frame_nr % NR_BUFS);
-         stop_ack_timer();                /*no need for separate ack frame*/
-     }
+        if (fk == PFrame.DATA) s.info = buffer[frame_nr % NR_BUFS]; /* if frame kind is data*/
+        s.seq = frame_nr; /* only meaningful for data frames*/
+        s.ack = (frame_expected + MAX_SEQ) % (MAX_SEQ + 1);
+        if (fk == PFrame.NAK) no_nak = false; /*one nak per frame, please */
+        to_physical_layer(s); /*transmit the frame*/
+        if (fk == PFrame.DATA) start_timer(frame_nr % NR_BUFS);
+        stop_ack_timer(); /*no need for separate ack frame*/
+    }
 
 
     public void protocol6() {
@@ -154,20 +158,65 @@ public class SWP {
        of the frame associated with this timer,
       */
 
+    /**
+     * Start a normal timer for frame
+     * @param seq sequence no
+     */
     private void start_timer(int seq) {
-
+        stop_timer(seq); /* stop timer*/
+        sender_timer[seq % NR_BUFS] = new Timer(); /*stop timer*/
+        sender_timer[seq % NR_BUFS].schedule(new FrameTimerTask(seq), 200);
     }
 
+    /**
+     * Stop a normal timer for frame
+     * @param seq sequence no
+     */
     private void stop_timer(int seq) {
-
+        if (sender_timer[seq % NR_BUFS] != null) {
+            sender_timer[seq % NR_BUFS].cancel();
+            sender_timer[seq % NR_BUFS] = null;
+        }
     }
 
+    /**
+     * Start an ack timer for a frame
+     */
     private void start_ack_timer() {
-
+        if (receiver_timer == null) {
+            receiver_timer = new Timer(); /*start timer*/
+            receiver_timer.schedule(new AckTimerTask(), 50);
+        }
     }
 
+    /**
+     * Stop an ack timer for a frame
+     */
     private void stop_ack_timer() {
+        if (receiver_timer != null) {
+            receiver_timer.cancel(); /*stop timer*/
+            receiver_timer = null;
+        }
+    }
 
+    class FrameTimerTask extends TimerTask {
+        private int seq;
+        public FrameTimerTask(int seq) {
+            this.seq = seq;
+        }
+        @Override
+        public void run() {
+            stop_timer(seq);
+            swe.generate_timeout_event(seq);
+        }
+    }
+
+    class AckTimerTask extends TimerTask {
+        @Override
+        public void run() {
+            stop_ack_timer();
+            swe.generate_acktimeout_event();
+        }
     }
 
 } //End of class
