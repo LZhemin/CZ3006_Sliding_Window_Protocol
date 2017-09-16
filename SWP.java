@@ -11,11 +11,10 @@
  *          Singapore 639798                                     *
  *===============================================================*/
 
-import java.util.Timer; /*importing library function*/
+import java.util.Timer;
 import java.util.TimerTask;
 
 public class SWP {
-
     /*========================================================================*
      the following are provided, do not change them!!
      *========================================================================*/
@@ -130,20 +129,73 @@ public class SWP {
     }
 
 
+    /**
+     * Sliding window protocol6 method
+     */
     public void protocol6() {
-        init();
+        int ack_expected = 0; /* lower edge of sender’s window & next ack expected on the inbound stream */
+        int next_frame_to_send = 0; /* upper edge of sender's window + 1 & number of next outgoing frame */
+        int frame_expected = 0; /*lower edge of receiver's window*/
+        int too_far = NR_BUFS; /*upper edge of receiver's window +1 */
+        int nbuffered = 0; /*how many output buffers currently used & initially no packets are buffered*/
+
+        PFrame r = new PFrame(); /*scratch variable*/
+        Packet[] in_buf = new Packet[NR_BUFS]; /* buffers for the inbound stream */
+        boolean[] arrived = new boolean[NR_BUFS]; /*inbound bit map*/
+
+        for (int i = 0; i < NR_BUFS; i++) arrived[i] = false;
+
+        init(); /*initialize outbound stream buffer*/
+        enable_network_layer(NR_BUFS); /*sender can send up to 4 frames before the ack for the first frame come back*/
+
         while (true) {
-            wait_for_event(event);
+            wait_for_event(event); /*five possibilites: see event_type above*/
             switch (event.type) {
-                case (PEvent.NETWORK_LAYER_READY): //Network Layer Ready
+                case (PEvent.NETWORK_LAYER_READY):
+                    /*Network Layer Ready & accept, save and transmit a new frame*/
+                    nbuffered += 1; /*expand the window*/
+                    from_network_layer(out_buf[next_frame_to_send % NR_BUFS]); /*fetch new packets*/
+                    send_frame(PFrame.DATA, next_frame_to_send, frame_expected, out_buf); /* transmit the frame */
+                    increment(next_frame_to_send); /* advance upper window edge */
                     break;
                 case (PEvent.FRAME_ARRIVAL):
+                    /* a data or control frame has arrived */
+                    from_physical_layer(r); /* fetch incoming frame from physical layer */
+                    if (r.kind == PFrame.DATA) { /* An undamaged frame has arrived. */
+                        if ((r.seq != frame_expected) && no_nak) //the frame's sequence number is not within the receiver's window
+                            send_frame(PFrame.NAK, 0, frame_expected, out_buf);
+                        else
+                            start_ack_timer(); //time duration that the ack should wait to be piggybacked, else, ack should be sent as a separate frame
+                        if (between(frame_expected, r.seq, too_far) && (arrived[r.seq % NR_BUFS] == false)) { /* Frames may be accepted in any order. */
+                            arrived[r.seq % NR_BUFS] = true; /* mark buffer as full */
+                            in_buf[r.seq % NR_BUFS] = r.info; /* insert data into buffer */
+                            while (arrived[frame_expected % NR_BUFS]) { /*Pass frames and advance window. */
+                                to_network_layer(in_buf[frame_expected % NR_BUFS]);
+                                no_nak = true;
+                                arrived[frame_expected % NR_BUFS] = false;
+                                frame_expected = increment(frame_expected); /* advance lower edge of receiver’s window */
+                                too_far = increment(too_far); /* advance upper edge of receiver’s window */
+                                start_ack_timer(); /* to see if a separate ack is needed */
+                            }
+                        }
+                    }
+                    if ((r.kind == PFrame.NAK) && between(ack_expected, (r.ack + 1) % (MAX_SEQ + 1), next_frame_to_send))
+                        send_frame(PFrame.DATA, (r.ack + 1) % (MAX_SEQ + 1), frame_expected, out_buf);
+                    while (between(ack_expected, r.ack, next_frame_to_send)) {
+                        enable_network_layer(1); //generate network_layer_ready event
+                        stop_timer(ack_expected % NR_BUFS);
+                        ack_expected = increment(ack_expected); /* advance lower edge of sender’s window */
+                    }
                     break;
                 case (PEvent.CKSUM_ERR):
+                    if (no_nak)
+                        send_frame(PFrame.NAK, 0, frame_expected, out_buf); /* damaged frame */
                     break;
                 case (PEvent.TIMEOUT):
+                    send_frame(PFrame.DATA, oldest_frame, frame_expected, out_buf); /* we timed out */
                     break;
                 case (PEvent.ACK_TIMEOUT):
+                    send_frame(PFrame.ACK, 0, frame_expected, out_buf); /* ack timer expired; send ack */
                     break;
                 default:
                     System.out.println("SWP: undefined event type = " + event.type);
