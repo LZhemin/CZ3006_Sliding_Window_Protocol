@@ -124,7 +124,7 @@ public class SWP {
         s.ack = (frame_expected + MAX_SEQ) % (MAX_SEQ + 1);
         if (fk == PFrame.NAK) no_nak = false; /*one nak per frame, please */
         to_physical_layer(s); /*transmit the frame*/
-        if (fk == PFrame.DATA) start_timer(frame_nr % NR_BUFS);
+        if (fk == PFrame.DATA) start_timer(frame_nr);
         stop_ack_timer(); /*no need for separate ack frame*/
     }
 
@@ -145,8 +145,8 @@ public class SWP {
 
         for (int i = 0; i < NR_BUFS; i++) arrived[i] = false;
 
-        init(); /*initialize outbound stream buffer*/
         enable_network_layer(NR_BUFS); /*sender can send up to 4 frames before the ack for the first frame come back*/
+        init(); /*initialize outbound stream buffer*/
 
         while (true) {
             wait_for_event(event); /*five possibilites: see event_type above*/
@@ -156,7 +156,7 @@ public class SWP {
                     nbuffered += 1; /*expand the window*/
                     from_network_layer(out_buf[next_frame_to_send % NR_BUFS]); /*fetch new packets*/
                     send_frame(PFrame.DATA, next_frame_to_send, frame_expected, out_buf); /* transmit the frame */
-                    increment(next_frame_to_send); /* advance upper window edge */
+                    next_frame_to_send = increment(next_frame_to_send); /* advance upper window edge */
                     break;
                 case (PEvent.FRAME_ARRIVAL):
                     /* a data or control frame has arrived */
