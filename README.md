@@ -1,9 +1,5 @@
-# CZ3006_Sliding_Window_Protocol
-Project for CZ3006 Net Centric Computing at Nanyang Technological University.
-Project was done as part of a coursework requirement for CZ3006 in AY17/18 Semester 1.
-
-## About
-This assignment aims to enhance students' understanding of the network protocol hierarchy and flow control and error control techniques by implementing a sliding window protocol in a simulated communication network system. The programming language will be Java.
+## Sliding Window Protocol 6
+This repo aims to enhance my understanding of the network protocol hierarchy and flow control and error control techniques by implementing a sliding window protocol in a simulated communication network system. The programming language will be Java.
 
 
 Folder Structure Conventions
@@ -51,4 +47,4 @@ Two text files are provided for testing purpose. They are used by the Sliding Wi
     
 ****
 
-***Disclaimer:*** This repo is depreciated and no longer maintained. All rights reserved to Nanyang Technological Univiserity and the Designer of course CZ3006. The author will bear no responsibilities for any issues arised from academic integrity of anyone who takes this repository as a reference.
+***Disclaimer:*** This repo is deprecated and no longer maintained. The Project was submitted as part of the course project for CZ3006 Net Centric Computing at NTU in AY 17/18 Semester 1. All rights reserved to Nanyang Technological University and the Designer of course CZ3006. The author will bear no responsibilities for any issues arose from academic integrity or honor code violations of anyone who takes this repository as a reference.
