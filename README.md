@@ -1,4 +1,4 @@
-## Sliding Window Protocol 6
+# Sliding Window Protocol 6
 This repo aims to enhance my understanding of the network protocol hierarchy and flow control and error control techniques by implementing a sliding window protocol in a simulated communication network system. The programming language will be Java.
 
 
